@@ -1,0 +1,212 @@
+---
+title: "Unsupervised_Learning_Methods_with_Shiny"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Unsupervised_Learning_Methods_with_Shiny}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(ShinyUL)
+library(factoextra)
+library(Rtsne)
+```
+
+
+# Contexte et Objectifs du Projet
+
+Le succès d’une entreprise dépend largement de sa connaissance du comportement de sa clientèle. Dans la plupart des cas, il est impossible de connaître chaque client de façon individuelle. Heureusement, il existe des techniques (*Clustering*) permettant de classer tous les clients en groupes en fonction de similitudes identifiées (caractéristiques communes) : segmentation de la clientèle.
+
+La segmentation de clientèle est une tâche récurrente en entreprise. Dans ce projet, vous devez développer une application performante et complète R Shiny qui permet d'automatiser cette tâche. Vous devez implémenter des méthodes pour la recherche du meilleur nombre de clusters avec visualisation des résultats. Toutefois, l'utilisateur devra avoir un contrôle total sur le choix du nombre de clusters et pourra ainsi varier ce nombre et observer les changements.
+
+De plus, vous devez implémenter au moins deux techniques de réduction de la dimensionnalité afin de permettre aux utilisateurs de l'application de pouvoir réduire la dimension de grands ensembles de données.
+
+La vidéo ci-dessous présente un exemple de l'application que vous devez réaliser (cliquer sur l'image) :
+
+
+[![IMAGE_ALT](miniature_projet2.png)](https://www.youtube.com/watch?v=LaqjRe_PUgA)
+
+
+# L'algorithme des k-moyennes
+
+## Présentation
+
+Dans cette partie, je vous présente le processus de segmentation des données en utilisant l'algorithme des k-moyennes (*k-means*).
+
+L’algorithme de clustering K-means est un algorithme de partitionnement qui permet de trouver un nombre prédéfini *k* de sous-groupes (clusters) homogènes dans un grand ensemble de données. Il fait partie de l’apprentissage automatique non supervisé. L’idée basique des méthodes de regroupement (ou de partitionnement) est de définir des clusters de telle sorte sorte que la distance inter-cluster soit minimisée et que la distance intra-cluster soit maximale.
+
+Sauf dans certains cas précis, on ne connait pas d’avance le nombre de clusters. Plusieurs méthodes comme la méthode du coude (*elbow method*) et la méthode de la silhouette moyenne (*average silhouette*) permettent de déterminer le nombre optimal de clusters.
+
+- Avec la **méthode du coude**, le meilleur k est celui à partir duquel on observe plus d’amélioration sensible de la qualité de la segmentation (*clustering*) au fur et à mesure que le k augmente (k = 1 à 10 par exemple). Pour cette valeur k, on observera une coude au niveau de la courbe donnant l'inertie en fonction du nombre de clusters (k).
+
+- La **méthode de la silhouette moyenne** mesure à quel point chaque individu (observation) est intégré dans son groupe. Une largeur de silhouette moyenne élevée indique un bon cluster. La méthode de la silhouette moyenne calcule la silhouette moyenne des observations pour différentes valeurs de k. Le nombre optimal de groupes k est celui qui maximise la silhouette moyenne sur une plage de valeurs possibles pour k.
+
+Nous allons segmenter les données du jeu de données *iris* en supposant que les données soient non-étiquetées.
+
+## Normalisation des données
+
+L'algorithme des K-means utilise la distance entre les points. Donc, il est absolument nécessaire que les données soient à la même échelle afin qu'il n'y ait pas de variables qui aient beaucoup plus de poids que d'autres. Vous pouvez soit normaliser les données (répartir les valeurs entre 0 et 1) soient les standardiser (moyenne = 0 et écart-type = 1).
+
+```{r}
+# Données iris
+
+head(iris)
+
+# Suppression de la colonne 'Species'
+
+iris$Species <- NULL
+
+# Normalisation des données
+
+iris_norm <- normalize(iris)
+
+# Statistiques des données normalisées
+
+summary(iris_norm)
+
+# Standardisation des données
+
+iris_stand <- standardize(iris)
+
+# Statistiques des données standardisées
+
+summary(iris_stand)
+```
+
+
+## Méthode du coude pour la détermination du meilleur nombre de clusters
+
+La fonction [fviz_nbclust](https://www.rdocumentation.org/packages/factoextra/versions/1.0.7/topics/fviz_nbclust) du package [factoextra](https://www.rdocumentation.org/packages/factoextra/versions/1.0.7) permet de déterminer et de visualiser le nombre optimal de clusters pour un ensemble de données.
+
+
+```{r}
+#Méthode du coude pour déterminer le meilleur nombre de clusters
+
+elbow_method <- fviz_nbclust(iris_stand, FUNcluster = kmeans, method = "wss")
+
+elbow_method
+```
+
+
+La méthode du coude suggère 3 clusters pour les données. 
+
+**Au niveau de l'application, vous devez donner la possibilité à l'utilisateur de choisir entre les données normalisées et celles standardisées**.
+
+Voyons à présent le nombre de clusters suggéré par la méthode de la silhouette moyenne
+
+## Méthode de la silhouette moyenne pour la détermination du meilleur nombre de clusters
+
+
+```{r}
+#Méthode de la silhouette moyenne
+
+silhouette_method <- fviz_nbclust(iris_stand, FUNcluster = kmeans, method = "silhouette")
+
+silhouette_method
+```
+
+
+Deux clusters ont été suggérés par la méthode de la silhouette moyenne.
+
+## Exécution et Visualisation des résultats de la segmentation
+
+
+```{r}
+set.seed(123)
+
+#Exécution de l'algorithme k-means avec k = 3
+
+model <- kmeans(iris_stand, centers = 3, nstart = 20)
+
+# Visualisation des résultats
+
+plot(iris[, c("Sepal.Width", "Petal.Length")], 
+     col = as.factor(model$cluster), 
+     pch = 20, cex = 3)
+```
+
+Comme dans la vidéo montrant un exemple de l'application que vous devez créer, l'utilisateur de votre application doit avoir le contrôle sur le choix du nombre de clusters. 
+
+Par ailleurs, vous avez le libre choix d'aller au-delà des objectifs fixés pour ce projet en ajoutant d'autres fonctionnalités à votre application.
+
+
+# Réduction de la dimensionnalité
+
+Il existe plusieurs techniques plus moins complexes pour réduire la dimension d'un ensemble de données. La technique la plus populaire est certainement l'Analyse en Composantes Principales (ACP). En dehors de cette technique, il y a aussi l'algorithme *t-SNE* ou *t-Distributed Stochastic Neighbour Embedding*. L'objectif ici n'est pas de vous donner un cours exhaustif sur ces techniques qui relèvent de l'apprentissage automatique non-supervisé, mais plutôt de vous montrer comment les implémenter dans une application R Shiny.
+
+
+## Analyse en composantes principales
+
+L'ACP est une technique d'extraction linéaire de variables. L'ACP crée de nouvelles variables **indépendantes** (appelées composantes principales) à partir des variables originelles tout en maximisant la variance des données dans le nouvel espace de faible dimension. 
+
+Ci-dessous un exemple d'application de l'ACP à l'ensemble de données *iris* :
+
+```{r}
+# Création d'un modèle ACP
+
+model_acp <- prcomp(iris_stand, scale = FALSE, center = FALSE)
+
+# Visualisation du % de variance expliquée par chaque composante
+
+fviz_screeplot(model_acp, ncp = ncol(iris_stand))
+
+# Nuage de points des deux premières composantes
+
+plot(model_acp$x[, 1:2])
+```
+
+
+En utilisant des données normalisées ou standardisées, nous pouvons mettre en toute sécurité `FALSE` aux arguments `center` et `scale` de la fonction [prcomp](https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/prcomp). 
+
+La visualisation du diagramme à barre montrant le pourcentage de variance expliquée par chaque composante principale permet de choisir le nombre de composantes optimal qui expliquent la majorité de la variance contenue dans les données.
+
+La matrice du nouvel ensemble de données se trouve dans l'attribut `x` de `model_pca`. **Au niveau de l'application, vous devez donner la possibilité à l'utilisateur de télécharger ce nouvel ensemble de données pour une utilisation ultérieure**.
+
+
+## Algorithme t-SNE
+
+La technique d'analyse en composantes principales peut capturer uniquement la structure linéaire présente dans l'ensemble originel. La technique d'Incorporation de voisin stochastique t-distribué (*t-SNE*) fait partie des techniques avancées de réduction de dimensionnalité qui permettent de lever cette limitation de l'ACP. t-SNE est une technique de réduction de dimensionnalité non-linéaire qui permet de bien visualiser les ensembles de données de très grande dimension.
+
+Ci-dessous un exemple d'application de *t-SNE* à l'ensemble de données *iris* :
+
+
+```{r}
+set.seed(123)
+
+# Modèle t-SNE
+
+model_tsne <- Rtsne(iris_stand, pca = FALSE, dims = 2, 
+                    check_duplicates = FALSE, max_iter = 1000)
+
+# Graphique 
+
+plot(model_tsne$costs, type = 'l', ylab = 'Costs')
+
+# Nouvel ensemble de données
+
+data_tsne <- data.frame(tsne_x = model_tsne$Y[, 1], 
+                        tsne_y =model_tsne$Y[, 2])
+
+head(data_tsne)
+```
+
+
+La fonction [Rtsne](https://www.rdocumentation.org/packages/Rtsne/versions/0.15/topics/Rtsne) permet d'implémenter l'algorithme *t-SNE* dans R. Etant donné qu'il s'agit d'un processus aléatoire, il est bien de s'assurer de la reproductibilité des résultats à chaque exécution du code (`set.seed(123)`).
+
+- l'argument `pca` permet de spécifier si on réalise ou non une ACP sur les données d'origine avant d'appliquer l'algorithme *t-SNE*. **Au niveau de l'application à développer, vous devez donner le contrôle à l'utilisateur sur cet argument**.
+
+- l'argument `dims` permet de spécifier le nombre de dimensions que l'on souhaite avoir dans le nouvel ensemble de données. Par défaut, il est égal à 2.
+
+-`check_duplicates = FALSE` veut dire qu'on ne veut pas rechercher s'il y a des doublons ou pas dans l'ensemble originel.
+
+- L'argument `max_iter` indique le nombre maximal d'itérations. Par défaut, il est égal à 1000. Le nombre optimal d'itérations dépend des données. **Vous devez donc donner le contrôle à l'utilisateur sur cet argument**. 
+
+- le but de t-SNE est de minimiser la divergence K-L entre l'espace d'origine et le nouveau. Ces valeurs proches de zéro (graphique des coûts) correspondent à des données qui conservent leur structure d'origine dans le nouvel espace de faible dimension.
